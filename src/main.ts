@@ -1,26 +1,26 @@
 import {
-  type App, type Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, type MenuItem,
-  type TFile
+  type App, Modal, Plugin, PluginSettingTab, Setting, type MenuItem, TFile, normalizePath,
 } from 'obsidian'
 import { fromMarkdown } from 'mdast-util-from-markdown'
 import { toMarkdown } from 'mdast-util-to-markdown'
-import { type Root, type PhrasingContent } from 'mdast'
+import { type Root, type PhrasingContent, List } from 'mdast'
 
-// Remember to rename these classes and interfaces!
-
-interface MyPluginSettings {
-  mySetting: string
+interface SubdividerSettings {
+  recursive: boolean;
+  deleteFile: boolean
 }
 
-const DEFAULT_SETTINGS: MyPluginSettings = {
-  mySetting: 'default'
+const DEFAULT_SETTINGS: SubdividerSettings = {
+  recursive: false,
+  deleteFile: false
 }
+
 interface Document {
   title: string
   root: Root
 }
 
-function getTitleOfDocument (nodes: PhrasingContent[]): string {
+function getTitleOfDocument(nodes: PhrasingContent[]): string {
   return toMarkdown({
     type: 'root',
     children: [
@@ -35,130 +35,121 @@ function getTitleOfDocument (nodes: PhrasingContent[]): string {
     .trim()
 }
 
-export default class MyPlugin extends Plugin {
-  settings: MyPluginSettings
-
-  async onload (): Promise<void> {
-    await this.loadSettings()
-
-    // This creates an icon in the left ribbon.
-    const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (evt: MouseEvent) => {
-      // Called when the user clicks the icon.
-      // eslint-disable-next-line no-new
-      new Notice('This is a notice!')
-    })
-    // Perform additional things with the ribbon
-    ribbonIconEl.addClass('my-plugin-ribbon-class')
-
-    // This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-    const statusBarItemEl = this.addStatusBarItem()
-    statusBarItemEl.setText('Sample')
-
-    // This adds a simple command that can be triggered anywhere
-    this.addCommand({
-      id: 'open-sample-modal-simple',
-      name: 'Open sample modal (simple)',
-      callback: () => {
-        new SampleModal(this.app).open()
+function processContent(content: string, rootName: string,): Document[] {
+  const tree = fromMarkdown(content)
+  const documents: Document[] = [
+    {
+      title: rootName,
+      root: {
+        type: 'root',
+        children: [
+          { type: "heading", depth: 1, children: [{ type: "text", value: "TOC" }] },
+          { type: "list", ordered: true, start: 1, spread: false, children: [] }
+        ]
       }
-    })
-    // This adds an editor command that can perform some operation on the current editor instance
-    this.addCommand({
-      id: 'sample-editor-command',
-      name: 'Sample editor command',
-      editorCallback: (editor: Editor, view: MarkdownView) => {
-        console.log(editor.getSelection())
-        editor.replaceSelection('Sample Editor Command')
+    }
+  ]
+  for (const obj of tree.children) {
+    if (obj.type === 'heading' && obj.depth === 1) {
+      const title = getTitleOfDocument(obj.children)
+      const doc: Document = {
+        title: title,
+        root: {
+          type: 'root',
+          children: []
+        }
       }
-    })
-    // This adds a complex command that can check whether the current state of the app allows execution of the command
-    this.addCommand({
-      id: 'open-sample-modal-complex',
-      name: 'Open sample modal (complex)',
-      checkCallback: (checking: boolean) => {
-        // Conditions to check
-        const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView)
-        if (markdownView != null) {
-          // If checking is true, we're simply "checking" if the command can be run.
-          // If checking is false, then we want to actually perform the operation.
-          if (!checking) {
-            new SampleModal(this.app).open()
+      documents.push(doc);
+      (documents.at(0)?.root.children[1] as List).children.push({
+        type: "listItem",
+        spread: false,
+        children: [{
+          type: "paragraph",
+          children: [{
+            type: "link",
+            children: [
+              { type: "text", value: title }
+            ],
+            url: normalizePath(title)
+          }]
+        }]
+      })
+    } else {
+      if (obj.type === 'heading') {
+        obj.depth -= 1
+      }
+      documents.at(-1)?.root.children.push(obj)
+    }
+  }
+  return documents
+}
+
+async function subdivide(app: App, rootName: string, documents: Document[], recursive: boolean): Promise<void> {
+  if (app.vault.getAbstractFileByPath(normalizePath(rootName))) {
+    new OverrideModal(this.app, rootName).myOpen().then(async shouldOverride => {
+      if (shouldOverride) {
+        for (const doc of documents) {
+          const file = app.vault.getAbstractFileByPath(normalizePath(`${rootName}/${doc.title}.md`))
+          if (file) {
+            await app.vault.modify(file as TFile, toMarkdown(doc.root))
           }
-
-          // This command will only show up in Command Palette when the check function returns true
-          return true
+          else {
+            await app.vault.create(normalizePath(`${rootName}/${doc.title}.md`), toMarkdown(doc.root))
+          }
         }
       }
     })
-    // this.registerEvent(
-    // this.app.workspace.on("editor-menu", (menu) => {
-    //     menu.addSeparator();
-    //     menu.addItem(item => {
-    //         item
-    //             .setTitle("TEsT Command")
-    //             .setIcon("blocks")
-    //             .onClick(() => {
-    //                 const activeEditor = this.app.workspace.activeEditor;
-    //                 let selectedText = "";
-    //                 if (activeEditor !== null) {
-    //                     selectedText = activeEditor.getSelection();
-    //                 }
-    //                 else {
-    //                     selectedText = "NULL";
-    //                 }
-    //                 new Notice(`Select \n${selectedText}`);
-    //             });
-    //     });
-    // }));
+  }
+  else {
+    await app.vault.createFolder(normalizePath(rootName))
+    for (const doc of documents) {
+      await app.vault.create(normalizePath(`${rootName}/${doc.title}.md`), toMarkdown(doc.root))
+    }
+  }
+}
+
+export default class SubdividerPlugin extends Plugin {
+  settings: SubdividerSettings
+
+  async onload(): Promise<void> {
+    await this.loadSettings()
+
+    // register text event
+    this.registerEvent(
+      this.app.workspace.on("editor-menu", (menu) => {
+        menu.addSeparator()
+        menu.addItem(item => {
+          item
+            .setTitle("Subdivide the selection")
+            .setIcon("blocks")
+            .onClick(async () => {
+              const selectedText = this.app.workspace.activeEditor?.editor?.getSelection()
+              if (selectedText) {
+                // const documents = processContent(selectedText)
+                // for (const doc of documents) {
+
+                // }
+              }
+            })
+        })
+      }))
+
+    // register file event
     this.registerEvent(
       this.app.workspace.on('file-menu', (menu, file: TFile) => {
         const addIconMenuItem = (item: MenuItem): void => {
-          item.setTitle('Expand to Folder')
-          item.setIcon('hashtag')
+          item.setTitle('Subdivide the file')
           item.onClick(async () => {
-            // console.log(file);
-            const filename = file.basename
-            // eslint-disable-next-line no-new
-            new Notice(`Processing ${filename}`)
             const fileContent = await this.app.vault.cachedRead(file)
-            const tree = fromMarkdown(fileContent)
-
-            const documents: Document[] = []
-
-            for (const obj of tree.children) {
-              if (obj.type === 'heading' && obj.depth === 1) {
-                const doc: Document = {
-                  title: getTitleOfDocument(obj.children),
-                  root: {
-                    type: 'root',
-                    children: []
-                  }
-                }
-                documents.push(doc)
-              } else {
-                if (obj.type === 'heading') {
-                  obj.depth -= 1
-                }
-                documents.at(-1)?.root.children.push(obj)
-              }
-            }
-
-            await this.app.vault.createFolder(filename)
-            for (const doc of documents) {
-              await this.app.vault.create(`${filename}/${doc.title}.md`, toMarkdown(doc.root))
-            }
-
-            // create folder for this.
-            // eslint-disable-next-line no-new
-            new Notice(`Expand to Folder ${filename}!`)
+            const documents = processContent(fileContent, file.basename)
+            await subdivide(this.app, file.basename, documents, this.settings.recursive)
           })
         }
         menu.addItem(addIconMenuItem)
       }
       ))
 
-    // This adds a settings tab so the user can configure various aspects of the plugin
-    this.addSettingTab(new SampleSettingTab(this.app, this))
+    this.addSettingTab(new SubdividerSettingTab(this.app, this))
 
     // If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
     // Using this function will automatically remove the event listener when this plugin is disabled.
@@ -170,53 +161,139 @@ export default class MyPlugin extends Plugin {
     this.registerInterval(window.setInterval(() => { console.log('setInterval') }, 5 * 60 * 1000))
   }
 
-  async onunload (): Promise<void> {
+  async onunload(): Promise<void> { }
 
-  }
-
-  async loadSettings (): Promise<void> {
+  async loadSettings(): Promise<void> {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData())
   }
 
-  async saveSettings (): Promise<void> {
+  async saveSettings(): Promise<void> {
     await this.saveData(this.settings)
   }
 }
 
-class SampleModal extends Modal {
-  async onOpen (): Promise<void> {
-    const { contentEl } = this
-    contentEl.setText('Woah!')
+export class FilenameModal extends Modal {
+  private filename: string
+  resolve: ((value: string | PromiseLike<string>) => void) | null = null;
+
+  constructor(app: App,) {
+    super(app);
+  }
+  myOpen() {
+    this.open();
+    return new Promise((resolve) => {
+      this.resolve = resolve;
+    });
   }
 
-  async onClose (): Promise<void> {
-    const { contentEl } = this
-    contentEl.empty()
+  onOpen() {
+    const { contentEl, titleEl } = this;
+    titleEl.setText("Pick a name for the folder:");
+    new Setting(contentEl)
+      .setName("Name")
+      .addText((text) =>
+        text.onChange((value) => {
+          this.filename = value
+        }));
+
+    new Setting(contentEl)
+      .addButton((btn) =>
+        btn
+          .setButtonText("Confirm")
+          .setCta()
+          .onClick(() => {
+            if (this.resolve) this.resolve(this.filename);
+            this.close();
+          }));
+  }
+
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
   }
 }
 
-class SampleSettingTab extends PluginSettingTab {
-  plugin: MyPlugin
+export class OverrideModal extends Modal {
+  constructor(
+    app: App,
+    private readonly foldername: string
+  ) {
+    super(app);
+  }
+  resolve: ((value: boolean | PromiseLike<boolean>) => void) | null = null;
+  myOpen() {
+    this.open();
+    return new Promise((resolve) => {
+      this.resolve = resolve;
+    });
+  }
+  onOpen() {
+    const { contentEl, titleEl } = this;
+    titleEl.setText("Override folder");
+    contentEl
+      .createEl("p")
+      .setText(
+        `The folder ${this.foldername} already exists. Do you want to override it?`
+      );
 
-  constructor (app: App, plugin: MyPlugin) {
+    const div = contentEl.createDiv({ cls: "modal-button-container" });
+    const discard = div.createEl("button", {
+      cls: "mod-warning",
+      text: "Override",
+    });
+    discard.addEventListener("click", async () => {
+      if (this.resolve) this.resolve(true);
+      this.close();
+    });
+    discard.addEventListener("keypress", async () => {
+      if (this.resolve) this.resolve(true);
+      this.close();
+    });
+
+    const close = div.createEl("button", {
+      text: "Cancel",
+    });
+    close.addEventListener("click", () => {
+      if (this.resolve) this.resolve(false);
+      return this.close();
+    });
+    close.addEventListener("keypress", () => {
+      if (this.resolve) this.resolve(false);
+      return this.close();
+    });
+  }
+
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+}
+
+class SubdividerSettingTab extends PluginSettingTab {
+  plugin: SubdividerPlugin
+
+  constructor(app: App, plugin: SubdividerPlugin) {
     super(app, plugin)
     this.plugin = plugin
   }
 
-  display (): void {
+  display(): void {
     const { containerEl } = this
 
     containerEl.empty()
 
     new Setting(containerEl)
-      .setName('Setting #1')
-      .setDesc('It\'s a secret')
-      .addText(text => text
-        .setPlaceholder('Enter your secret')
-        .setValue(this.plugin.settings.mySetting)
-        .onChange(async (value) => {
-          this.plugin.settings.mySetting = value
-          await this.plugin.saveSettings()
-        }))
+      .setName('Recursive')
+      .setDesc('Turn all subheadings to folders recursively.')
+      .addToggle(toggle => toggle.onChange(value =>
+        this.plugin.settings.recursive = value
+      ))
+
+    new Setting(containerEl)
+      .setName('Delete Original File')
+      .setDesc('Delete original file after subdivision.')
+      .addToggle(toggle => toggle.onChange(value =>
+        this.plugin.settings.recursive = value
+      ))
   }
 }
