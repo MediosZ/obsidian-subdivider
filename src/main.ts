@@ -290,7 +290,7 @@ class SubdividerSettingTab extends PluginSettingTab {
       ))
 
     new Setting(containerEl)
-      .setName('Delete Original File')
+      .setName('Delete original file')
       .setDesc('Delete original file after subdivision.')
       .addToggle(toggle => toggle.onChange(value =>
         this.plugin.settings.recursive = value
