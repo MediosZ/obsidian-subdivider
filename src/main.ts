@@ -1,4 +1,10 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import {
+	App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, MenuItem,
+	TFile
+} from 'obsidian';
+import { fromMarkdown } from 'mdast-util-from-markdown'
+import { toMarkdown } from 'mdast-util-to-markdown'
+import { Root, PhrasingContent } from 'mdast';
 
 // Remember to rename these classes and interfaces!
 
@@ -9,6 +15,26 @@ interface MyPluginSettings {
 const DEFAULT_SETTINGS: MyPluginSettings = {
 	mySetting: 'default'
 }
+interface Document {
+	title: string;
+	root: Root;
+}
+
+function getTitleOfDocument(nodes: PhrasingContent[]): string {
+	return toMarkdown({
+		type: "root",
+		children: [
+			{
+				type: "heading",
+				depth: 1,
+				children: nodes,
+			},
+		],
+	})
+		.slice(2)
+		.trim();
+}
+
 
 export default class MyPlugin extends Plugin {
 	settings: MyPluginSettings;
@@ -26,7 +52,7 @@ export default class MyPlugin extends Plugin {
 
 		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
 		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status Bar Text');
+		statusBarItemEl.setText('Sample');
 
 		// This adds a simple command that can be triggered anywhere
 		this.addCommand({
@@ -64,6 +90,72 @@ export default class MyPlugin extends Plugin {
 				}
 			}
 		});
+		this.registerEvent(
+			this.app.workspace.on("editor-menu", (menu) => {
+				menu.addSeparator();
+				menu.addItem(item => {
+					item
+						.setTitle("TEsT Command")
+						.setIcon("blocks")
+						.onClick(() => {
+							const activeEditor = this.app.workspace.activeEditor;
+							let selectedText = "";
+							if (activeEditor !== null) {
+								selectedText = activeEditor.getSelection();
+							}
+							else {
+								selectedText = "NULL";
+							}
+							new Notice(`Select \n${selectedText}`);
+						});
+				});
+			}));
+		this.registerEvent(
+			this.app.workspace.on('file-menu', (menu, file: TFile) => {
+
+				const addIconMenuItem = (item: MenuItem) => {
+					item.setTitle('Expand to Folder');
+					item.setIcon('hashtag');
+					item.onClick(async () => {
+						// console.log(file);
+						let filename = file.basename;
+						new Notice(`Processing ${filename}`);
+						const fileContent = await this.app.vault.cachedRead(file);
+						let tree = fromMarkdown(fileContent);
+
+						let documents: Document[] = [];
+
+						for (let obj of tree.children) {
+							if (obj.type === "heading" && obj.depth === 1) {
+								let doc: Document = {
+									title: getTitleOfDocument(obj.children),
+									root: {
+										type: "root",
+										children: [],
+									},
+								};
+								documents.push(doc);
+							} else {
+								if (obj.type === "heading") {
+									obj.depth -= 1;
+								}
+								documents.at(-1)?.root.children.push(obj);
+							}
+						}
+
+						await this.app.vault.createFolder(filename);
+						for (let doc of documents) {
+							await this.app.vault.create(`${filename}/${doc.title}.md`, toMarkdown(doc.root));
+						}
+
+						// create folder for this.
+						new Notice(`Expand to Folder ${filename}`!);
+					});
+				};
+				menu.addItem(addIconMenuItem);
+
+			}
+			));
 
 		// This adds a settings tab so the user can configure various aspects of the plugin
 		this.addSettingTab(new SampleSettingTab(this.app, this));
@@ -97,12 +189,12 @@ class SampleModal extends Modal {
 	}
 
 	onOpen() {
-		const {contentEl} = this;
+		const { contentEl } = this;
 		contentEl.setText('Woah!');
 	}
 
 	onClose() {
-		const {contentEl} = this;
+		const { contentEl } = this;
 		contentEl.empty();
 	}
 }
@@ -116,7 +208,7 @@ class SampleSettingTab extends PluginSettingTab {
 	}
 
 	display(): void {
-		const {containerEl} = this;
+		const { containerEl } = this;
 
 		containerEl.empty();
 

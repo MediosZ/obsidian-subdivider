@@ -1,15 +1,19 @@
 {
-	"name": "obsidian-sample-plugin",
-	"version": "1.0.0",
-	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
+	"name": "subdivider",
+	"version": "0.0.1",
+	"description": "Subdivider is an efficient plugin for Obsidian that simplifies note organization. It converts your notes into nested folders, automatically creating separate files for each subheading. With Subdivider, you can easily navigate through your notes and manage large and complex information effortlessly.",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
 		"version": "node version-bump.mjs && git add manifest.json versions.json"
 	},
-	"keywords": [],
-	"author": "",
+	"keywords": [
+		"Obsidian",
+		"Note organization",
+		"Productivity"
+	],
+	"author": "Tricster",
 	"license": "MIT",
 	"devDependencies": {
 		"@types/node": "^16.11.6",
@@ -20,5 +24,10 @@
 		"obsidian": "latest",
 		"tslib": "2.4.0",
 		"typescript": "4.7.4"
+	},
+	"dependencies": {
+		"@types/mdast": "^4.0.3",
+		"mdast-util-from-markdown": "^2.0.0",
+		"mdast-util-to-markdown": "^2.1.0"
 	}
 }
