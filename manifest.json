@@ -3,9 +3,9 @@
 	"name": "Subdivider",
 	"version": "0.0.1",
 	"minAppVersion": "0.15.0",
-	"description": "Subdivider is an efficient plugin for Obsidian that simplifies note organization. It converts your notes into nested folders, automatically creating separate files for each subheading. With Subdivider, you can easily navigate through your notes and manage large and complex information effortlessly.",
+	"description": "Converts your notes into nested folders, automatically creating separate files for each subheading.",
 	"author": "Tricster",
-	"authorUrl": "https://obsidian.md",
+	"authorUrl": "https://github.com/MediosZ",
 	"fundingUrl": "https://obsidian.md/pricing",
 	"isDesktopOnly": false
 }

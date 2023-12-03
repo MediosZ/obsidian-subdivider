@@ -1,7 +1,12 @@
 {
 	"name": "subdivider",
 	"version": "0.0.1",
-	"description": "Subdivider is an efficient plugin for Obsidian that simplifies note organization. It converts your notes into nested folders, automatically creating separate files for each subheading. With Subdivider, you can easily navigate through your notes and manage large and complex information effortlessly.",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/MediosZ/obsidian-subdivider.git"
+	},
+	"homepage": "https://github.com/MediosZ/obsidian-subdivider#readme",
+	"description": "Converts your notes into nested folders, automatically creating separate files for each subheading.",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
@@ -13,22 +18,21 @@
 		"Note organization",
 		"Productivity"
 	],
-	"author": "Tricster",
+	"author": {
+		"name": "Tricster",
+		"email": "mediosrity@gmail.com",
+		"url": "https://www.mediosz.club/"
+	},
 	"license": "MIT",
 	"devDependencies": {
 		"@types/node": "^16.11.6",
-		"@typescript-eslint/eslint-plugin": "^6.4.0",
+		"@typescript-eslint/eslint-plugin": "5.29.0",
 		"@typescript-eslint/parser": "5.29.0",
 		"builtin-modules": "3.3.0",
 		"esbuild": "0.17.3",
-		"eslint": "^8.0.1",
-		"eslint-config-standard-with-typescript": "^40.0.0",
-		"eslint-plugin-import": "^2.25.2",
-		"eslint-plugin-n": "^15.0.0 || ^16.0.0 ",
-		"eslint-plugin-promise": "^6.0.0",
 		"obsidian": "latest",
 		"tslib": "2.4.0",
-		"typescript": "*"
+		"typescript": "4.7.4"
 	},
 	"dependencies": {
 		"@types/mdast": "^4.0.3",
