@@ -4,6 +4,7 @@ import {
 import { fromMarkdown } from 'mdast-util-from-markdown'
 import { toMarkdown } from 'mdast-util-to-markdown'
 import { type Root, type PhrasingContent, List } from 'mdast'
+import { Heading } from 'mdast-util-from-markdown/lib';
 
 interface SubdividerSettings {
   recursive: boolean;
@@ -33,6 +34,48 @@ function getTitleOfDocument(nodes: PhrasingContent[]): string {
   })
     .slice(2)
     .trim()
+}
+
+async function processContentFromSelection(content: string): Promise<Document> {
+  const tree = fromMarkdown(content)
+  const doc: Document = {
+    title: "",
+    root: {
+      type: "root",
+      children: []
+    }
+  }
+  if (tree.children.at(0)?.type !== "heading" || (tree.children.at(0) as Heading)?.depth !== 1) {
+    // ask for a filename
+    doc.title = await new FilenameModal(this.app).myOpen();
+    for (const obj of tree.children) {
+      if (obj.type === 'heading') {
+        obj.depth -= 1
+      }
+      doc.root.children.push(obj)
+    }
+  }
+  else {
+    doc.title = getTitleOfDocument((tree.children.at(0) as Heading)?.children)
+    for (const obj of tree.children.slice(1)) {
+      if (obj.type === 'heading') {
+        obj.depth -= 1
+      }
+      doc.root.children.push(obj)
+    }
+  }
+
+  return doc
+}
+
+async function subdivideFile(app: App, doc: Document, recursive: boolean): Promise<void> {
+  const file = app.vault.getAbstractFileByPath(normalizePath(`${doc.title}.md`))
+  if (file && await new OverrideModal(this.app, `${doc.title}.md`).myOpen()) {
+    await app.vault.modify(file as TFile, toMarkdown(doc.root))
+  }
+  else {
+    await app.vault.create(normalizePath(`${doc.title}.md`), toMarkdown(doc.root))
+  }
 }
 
 function processContent(content: string, rootName: string,): Document[] {
@@ -85,20 +128,17 @@ function processContent(content: string, rootName: string,): Document[] {
 }
 
 async function subdivide(app: App, rootName: string, documents: Document[], recursive: boolean): Promise<void> {
-  if (app.vault.getAbstractFileByPath(normalizePath(rootName))) {
-    new OverrideModal(this.app, rootName).myOpen().then(async shouldOverride => {
-      if (shouldOverride) {
-        for (const doc of documents) {
-          const file = app.vault.getAbstractFileByPath(normalizePath(`${rootName}/${doc.title}.md`))
-          if (file) {
-            await app.vault.modify(file as TFile, toMarkdown(doc.root))
-          }
-          else {
-            await app.vault.create(normalizePath(`${rootName}/${doc.title}.md`), toMarkdown(doc.root))
-          }
-        }
+  if (app.vault.getAbstractFileByPath(normalizePath(rootName))
+    && await new OverrideModal(this.app, rootName).myOpen()) {
+    for (const doc of documents) {
+      const file = app.vault.getAbstractFileByPath(normalizePath(`${rootName}/${doc.title}.md`))
+      if (file) {
+        await app.vault.modify(file as TFile, toMarkdown(doc.root))
       }
-    })
+      else {
+        await app.vault.create(normalizePath(`${rootName}/${doc.title}.md`), toMarkdown(doc.root))
+      }
+    }
   }
   else {
     await app.vault.createFolder(normalizePath(rootName))
@@ -125,10 +165,8 @@ export default class SubdividerPlugin extends Plugin {
             .onClick(async () => {
               const selectedText = this.app.workspace.activeEditor?.editor?.getSelection()
               if (selectedText) {
-                // const documents = processContent(selectedText)
-                // for (const doc of documents) {
-
-                // }
+                const doc = await processContentFromSelection(selectedText)
+                await subdivideFile(this.app, doc, this.settings.recursive)
               }
             })
         })
@@ -173,12 +211,12 @@ export default class SubdividerPlugin extends Plugin {
 }
 
 export class FilenameModal extends Modal {
-  private filename: string
-  resolve: ((value: string | PromiseLike<string>) => void) | null = null;
 
   constructor(app: App,) {
     super(app);
   }
+  private filename: string
+  resolve: ((value: string | PromiseLike<string>) => void) | null = null;
   myOpen() {
     this.open();
     return new Promise((resolve) => {
@@ -188,7 +226,7 @@ export class FilenameModal extends Modal {
 
   onOpen() {
     const { contentEl, titleEl } = this;
-    titleEl.setText("Pick a name for the folder:");
+    titleEl.setText("Pick a name:");
     new Setting(contentEl)
       .setName("Name")
       .addText((text) =>
@@ -216,7 +254,7 @@ export class FilenameModal extends Modal {
 export class OverrideModal extends Modal {
   constructor(
     app: App,
-    private readonly foldername: string
+    private readonly name: string
   ) {
     super(app);
   }
@@ -233,7 +271,7 @@ export class OverrideModal extends Modal {
     contentEl
       .createEl("p")
       .setText(
-        `The folder ${this.foldername} already exists. Do you want to override it?`
+        `The ${this.name} already exists. Do you want to override it?`
       );
 
     const div = contentEl.createDiv({ cls: "modal-button-container" });
