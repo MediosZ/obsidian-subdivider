@@ -47,7 +47,7 @@ async function processContentFromSelection(content: string): Promise<Document> {
   }
   if (tree.children.at(0)?.type !== "heading" || (tree.children.at(0) as Heading)?.depth !== 1) {
     // ask for a filename
-    doc.title = await new FilenameModal(this.app).myOpen();
+    doc.title = await new FilenameModal(this.app).myOpen() as string;
     for (const obj of tree.children) {
       if (obj.type === 'heading') {
         obj.depth -= 1
