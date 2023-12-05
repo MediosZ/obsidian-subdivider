@@ -4,16 +4,18 @@ import {
 import { fromMarkdown } from 'mdast-util-from-markdown'
 import { toMarkdown } from 'mdast-util-to-markdown'
 import { type Root, type PhrasingContent, List } from 'mdast'
-import { Heading } from 'mdast-util-from-markdown/lib';
+import { Heading } from 'mdast-util-from-markdown/lib'
 
 interface SubdividerSettings {
-  recursive: boolean;
-  deleteFile: boolean
+  recursive: boolean
+  delete: boolean
+  mySetting: string
 }
 
 const DEFAULT_SETTINGS: SubdividerSettings = {
   recursive: false,
-  deleteFile: false
+  delete: false,
+  mySetting: 'default'
 }
 
 interface Document {
@@ -47,7 +49,7 @@ async function processContentFromSelection(content: string): Promise<Document> {
   }
   if (tree.children.at(0)?.type !== "heading" || (tree.children.at(0) as Heading)?.depth !== 1) {
     // ask for a filename
-    doc.title = await new FilenameModal(this.app).myOpen() as string;
+    doc.title = await new FilenameModal(this.app).myOpen() as string
     for (const obj of tree.children) {
       if (obj.type === 'heading') {
         obj.depth -= 1
@@ -167,6 +169,9 @@ export default class SubdividerPlugin extends Plugin {
               if (selectedText) {
                 const doc = await processContentFromSelection(selectedText)
                 await subdivideFile(this.app, doc, this.settings.recursive)
+                if (this.settings.delete) {
+                  this.app.workspace.activeEditor?.editor?.replaceSelection("")
+                }
               }
             })
         })
@@ -181,6 +186,9 @@ export default class SubdividerPlugin extends Plugin {
             const fileContent = await this.app.vault.cachedRead(file)
             const documents = processContent(fileContent, file.basename)
             await subdivide(this.app, file.basename, documents, this.settings.recursive)
+            if (this.settings.delete) {
+              await this.app.vault.delete(file)
+            }
           })
         }
         menu.addItem(addIconMenuItem)
@@ -213,26 +221,26 @@ export default class SubdividerPlugin extends Plugin {
 export class FilenameModal extends Modal {
 
   constructor(app: App,) {
-    super(app);
+    super(app)
   }
   private filename: string
-  resolve: ((value: string | PromiseLike<string>) => void) | null = null;
+  resolve: ((value: string | PromiseLike<string>) => void) | null = null
   myOpen() {
-    this.open();
+    this.open()
     return new Promise((resolve) => {
-      this.resolve = resolve;
-    });
+      this.resolve = resolve
+    })
   }
 
   onOpen() {
-    const { contentEl, titleEl } = this;
-    titleEl.setText("Pick a name:");
+    const { contentEl, titleEl } = this
+    titleEl.setText("Pick a name:")
     new Setting(contentEl)
       .setName("Name")
       .addText((text) =>
         text.onChange((value) => {
           this.filename = value
-        }));
+        }))
 
     new Setting(contentEl)
       .addButton((btn) =>
@@ -240,14 +248,14 @@ export class FilenameModal extends Modal {
           .setButtonText("Confirm")
           .setCta()
           .onClick(() => {
-            if (this.resolve) this.resolve(this.filename);
-            this.close();
-          }));
+            if (this.resolve) this.resolve(this.filename)
+            this.close()
+          }))
   }
 
   onClose() {
-    const { contentEl } = this;
-    contentEl.empty();
+    const { contentEl } = this
+    contentEl.empty()
   }
 }
 
@@ -256,54 +264,54 @@ export class OverrideModal extends Modal {
     app: App,
     private readonly name: string
   ) {
-    super(app);
+    super(app)
   }
-  resolve: ((value: boolean | PromiseLike<boolean>) => void) | null = null;
+  resolve: ((value: boolean | PromiseLike<boolean>) => void) | null = null
   myOpen() {
-    this.open();
+    this.open()
     return new Promise((resolve) => {
-      this.resolve = resolve;
-    });
+      this.resolve = resolve
+    })
   }
   onOpen() {
-    const { contentEl, titleEl } = this;
-    titleEl.setText("Override folder");
+    const { contentEl, titleEl } = this
+    titleEl.setText("Override folder")
     contentEl
       .createEl("p")
       .setText(
         `The ${this.name} already exists. Do you want to override it?`
-      );
+      )
 
-    const div = contentEl.createDiv({ cls: "modal-button-container" });
+    const div = contentEl.createDiv({ cls: "modal-button-container" })
     const discard = div.createEl("button", {
       cls: "mod-warning",
       text: "Override",
-    });
+    })
     discard.addEventListener("click", async () => {
-      if (this.resolve) this.resolve(true);
-      this.close();
-    });
+      if (this.resolve) this.resolve(true)
+      this.close()
+    })
     discard.addEventListener("keypress", async () => {
-      if (this.resolve) this.resolve(true);
-      this.close();
-    });
+      if (this.resolve) this.resolve(true)
+      this.close()
+    })
 
     const close = div.createEl("button", {
       text: "Cancel",
-    });
+    })
     close.addEventListener("click", () => {
-      if (this.resolve) this.resolve(false);
-      return this.close();
-    });
+      if (this.resolve) this.resolve(false)
+      return this.close()
+    })
     close.addEventListener("keypress", () => {
-      if (this.resolve) this.resolve(false);
-      return this.close();
-    });
+      if (this.resolve) this.resolve(false)
+      return this.close()
+    })
   }
 
   onClose() {
-    const { contentEl } = this;
-    contentEl.empty();
+    const { contentEl } = this
+    contentEl.empty()
   }
 }
 
@@ -317,21 +325,28 @@ class SubdividerSettingTab extends PluginSettingTab {
 
   display(): void {
     const { containerEl } = this
-
     containerEl.empty()
 
     new Setting(containerEl)
       .setName('Recursive')
       .setDesc('Turn all subheadings to folders recursively.')
-      .addToggle(toggle => toggle.onChange(value =>
-        this.plugin.settings.recursive = value
-      ))
+      .addToggle(toggle => toggle
+        .setValue(this.plugin.settings.recursive)
+        .onChange(async value => {
+          this.plugin.settings.recursive = value
+          await this.plugin.saveSettings()
+        })
+      )
 
     new Setting(containerEl)
-      .setName('Delete original file')
-      .setDesc('Delete original file after subdivision.')
-      .addToggle(toggle => toggle.onChange(value =>
-        this.plugin.settings.recursive = value
-      ))
+      .setName('Delete original file or selection')
+      .setDesc('Delete original file or selection after subdivision.')
+      .addToggle(toggle => toggle
+        .setValue(this.plugin.settings.delete)
+        .onChange(async value => {
+          this.plugin.settings.delete = value
+          await this.plugin.saveSettings()
+        })
+      )
   }
 }
