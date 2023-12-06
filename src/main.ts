@@ -9,13 +9,13 @@ import { Heading } from 'mdast-util-from-markdown/lib'
 interface SubdividerSettings {
   recursive: boolean
   delete: boolean
-  mySetting: string
+  index: boolean
 }
 
 const DEFAULT_SETTINGS: SubdividerSettings = {
   recursive: false,
   delete: false,
-  mySetting: 'default'
+  index: true
 }
 
 interface Document {
@@ -80,20 +80,22 @@ async function subdivideFile(app: App, doc: Document, recursive: boolean): Promi
   }
 }
 
-function processContent(content: string, rootName: string,): Document[] {
+function processContent(content: string, rootName: string, index: boolean): Document[] {
   const tree = fromMarkdown(content)
-  const documents: Document[] = [
-    {
-      title: rootName,
-      root: {
-        type: 'root',
-        children: [
-          { type: "heading", depth: 1, children: [{ type: "text", value: "TOC" }] },
-          { type: "list", ordered: true, start: 1, spread: false, children: [] }
-        ]
-      }
-    }
-  ]
+  const documents: Document[] = []
+  if (index) {
+    documents.push(
+      {
+        title: rootName,
+        root: {
+          type: 'root',
+          children: [
+            { type: "heading", depth: 1, children: [{ type: "text", value: "TOC" }] },
+            { type: "list", ordered: true, start: 1, spread: false, children: [] }
+          ]
+        }
+      })
+  }
   for (const obj of tree.children) {
     if (obj.type === 'heading' && obj.depth === 1) {
       const title = getTitleOfDocument(obj.children)
@@ -105,20 +107,22 @@ function processContent(content: string, rootName: string,): Document[] {
         }
       }
       documents.push(doc);
-      (documents.at(0)?.root.children[1] as List).children.push({
-        type: "listItem",
-        spread: false,
-        children: [{
-          type: "paragraph",
+      if (index) {
+        (documents.at(0)?.root.children[1] as List).children.push({
+          type: "listItem",
+          spread: false,
           children: [{
-            type: "link",
-            children: [
-              { type: "text", value: title }
-            ],
-            url: normalizePath(title)
+            type: "paragraph",
+            children: [{
+              type: "link",
+              children: [
+                { type: "text", value: title }
+              ],
+              url: normalizePath(title)
+            }]
           }]
-        }]
-      })
+        })
+      }
     } else {
       if (obj.type === 'heading') {
         obj.depth -= 1
@@ -184,7 +188,7 @@ export default class SubdividerPlugin extends Plugin {
           item.setTitle('Subdivide the file')
           item.onClick(async () => {
             const fileContent = await this.app.vault.cachedRead(file)
-            const documents = processContent(fileContent, file.basename)
+            const documents = processContent(fileContent, file.basename, this.settings.index)
             await subdivide(this.app, file.basename, documents, this.settings.recursive)
             if (this.settings.delete) {
               await this.app.vault.delete(file)
@@ -345,6 +349,17 @@ class SubdividerSettingTab extends PluginSettingTab {
         .setValue(this.plugin.settings.delete)
         .onChange(async value => {
           this.plugin.settings.delete = value
+          await this.plugin.saveSettings()
+        })
+      )
+
+    new Setting(containerEl)
+      .setName('Create index file for folders')
+      .setDesc('Create index file for folders after subdivision.')
+      .addToggle(toggle => toggle
+        .setValue(this.plugin.settings.index)
+        .onChange(async value => {
+          this.plugin.settings.index = value
           await this.plugin.saveSettings()
         })
       )
