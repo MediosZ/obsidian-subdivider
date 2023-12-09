@@ -23,9 +23,9 @@ const DEFAULT_SETTINGS: SubdividerSettings = {
 const FromMarkdownExt = {
   extensions: [frontmatter(['yaml', 'toml'])],
   mdastExtensions: [frontmatterFromMarkdown(['yaml', 'toml'])]
-};
+}
 
-const ToMarkdownExt = { extensions: [frontmatterToMarkdown(['yaml', 'toml'])] };
+const ToMarkdownExt = { extensions: [frontmatterToMarkdown(['yaml', 'toml'])] }
 
 interface Document {
   title: string
@@ -79,13 +79,15 @@ async function processContentFromSelection(content: string): Promise<Document> {
   return doc
 }
 
-async function subdivideFile(app: App, doc: Document, recursive: boolean): Promise<void> {
-  const file = app.vault.getAbstractFileByPath(normalizePath(`${doc.title}.md`))
-  if (file && await new OverrideModal(this.app, `${doc.title}.md`).myOpen()) {
-    await app.vault.modify(file as TFile, toMarkdown(doc.root, ToMarkdownExt))
+async function subdivideFile(app: App, rootPath: string | undefined, doc: Document, recursive: boolean): Promise<void> {
+  const file = app.vault.getAbstractFileByPath(normalizePath(`${rootPath}/${doc.title}.md`))
+  if (file) {
+    if (await new OverrideModal(this.app, `${rootPath}/${doc.title}.md`).myOpen()) {
+      await app.vault.modify(file as TFile, toMarkdown(doc.root, ToMarkdownExt))
+    }
   }
   else {
-    await app.vault.create(normalizePath(`${doc.title}.md`), toMarkdown(doc.root, ToMarkdownExt))
+    await app.vault.create(normalizePath(`${rootPath}/${doc.title}.md`), toMarkdown(doc.root, ToMarkdownExt))
   }
 }
 
@@ -94,7 +96,7 @@ function processContent(content: string, rootName: string, index: boolean): Docu
   const documents: Document[] = []
   // Empty
   if (tree.children.length === 0) {
-    return documents;
+    return documents
   }
 
   const firstHeading = tree.children.findIndex((value) => value.type === "heading" && value.depth === 1)
@@ -123,7 +125,7 @@ function processContent(content: string, rootName: string, index: boolean): Docu
           children: []
         }
       }
-      documents.push(doc);
+      documents.push(doc)
       if (index) {
         (documents.at(0)?.root.children.last() as List).children.push({
           type: "listItem",
@@ -150,23 +152,24 @@ function processContent(content: string, rootName: string, index: boolean): Docu
   return documents
 }
 
-async function subdivide(app: App, rootName: string, documents: Document[], recursive: boolean): Promise<void> {
-  if (app.vault.getAbstractFileByPath(normalizePath(rootName))
-    && await new OverrideModal(this.app, rootName).myOpen()) {
-    for (const doc of documents) {
-      const file = app.vault.getAbstractFileByPath(normalizePath(`${rootName}/${doc.title}.md`))
-      if (file) {
-        await app.vault.modify(file as TFile, toMarkdown(doc.root, ToMarkdownExt))
-      }
-      else {
-        await app.vault.create(normalizePath(`${rootName}/${doc.title}.md`), toMarkdown(doc.root, ToMarkdownExt))
+async function subdivide(app: App, rootPath: string, documents: Document[], recursive: boolean): Promise<void> {
+  if (app.vault.getAbstractFileByPath(normalizePath(rootPath))) {
+    if (await new OverrideModal(this.app, rootPath).myOpen()) {
+      for (const doc of documents) {
+        const file = app.vault.getAbstractFileByPath(normalizePath(`${rootPath}/${doc.title}.md`))
+        if (file) {
+          await app.vault.modify(file as TFile, toMarkdown(doc.root, ToMarkdownExt))
+        }
+        else {
+          await app.vault.create(normalizePath(`${rootPath}/${doc.title}.md`), toMarkdown(doc.root, ToMarkdownExt))
+        }
       }
     }
   }
   else {
-    await app.vault.createFolder(normalizePath(rootName))
+    await app.vault.createFolder(normalizePath(rootPath))
     for (const doc of documents) {
-      await app.vault.create(normalizePath(`${rootName}/${doc.title}.md`), toMarkdown(doc.root))
+      await app.vault.create(normalizePath(`${rootPath}/${doc.title}.md`), toMarkdown(doc.root, ToMarkdownExt))
     }
   }
 }
@@ -189,7 +192,8 @@ export default class SubdividerPlugin extends Plugin {
               const selectedText = this.app.workspace.activeEditor?.editor?.getSelection()
               if (selectedText) {
                 const doc = await processContentFromSelection(selectedText)
-                await subdivideFile(this.app, doc, this.settings.recursive)
+                const rootPath = this.app.workspace.activeEditor?.file?.parent?.path
+                await subdivideFile(this.app, rootPath, doc, this.settings.recursive)
                 if (this.settings.delete) {
                   this.app.workspace.activeEditor?.editor?.replaceSelection("")
                 }
@@ -206,7 +210,7 @@ export default class SubdividerPlugin extends Plugin {
           item.onClick(async () => {
             const fileContent = await this.app.vault.cachedRead(file)
             const documents = processContent(fileContent, file.basename, this.settings.index)
-            await subdivide(this.app, file.basename, documents, this.settings.recursive)
+            await subdivide(this.app, `${file.parent?.path}/${file.basename}`, documents, this.settings.recursive)
             if (this.settings.delete) {
               await this.app.vault.delete(file)
             }
