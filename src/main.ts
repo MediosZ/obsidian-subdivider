@@ -5,6 +5,8 @@ import { fromMarkdown } from 'mdast-util-from-markdown'
 import { toMarkdown } from 'mdast-util-to-markdown'
 import { type Root, type PhrasingContent, List } from 'mdast'
 import { Heading } from 'mdast-util-from-markdown/lib'
+import { frontmatter } from 'micromark-extension-frontmatter'
+import { frontmatterFromMarkdown, frontmatterToMarkdown } from 'mdast-util-frontmatter'
 
 interface SubdividerSettings {
   recursive: boolean
@@ -17,6 +19,13 @@ const DEFAULT_SETTINGS: SubdividerSettings = {
   delete: false,
   index: true
 }
+
+const FromMarkdownExt = {
+  extensions: [frontmatter(['yaml', 'toml'])],
+  mdastExtensions: [frontmatterFromMarkdown(['yaml', 'toml'])]
+};
+
+const ToMarkdownExt = { extensions: [frontmatterToMarkdown(['yaml', 'toml'])] };
 
 interface Document {
   title: string
@@ -33,13 +42,13 @@ function getTitleOfDocument(nodes: PhrasingContent[]): string {
         children: nodes
       }
     ]
-  })
+  }, ToMarkdownExt)
     .slice(2)
     .trim()
 }
 
 async function processContentFromSelection(content: string): Promise<Document> {
-  const tree = fromMarkdown(content)
+  const tree = fromMarkdown(content, FromMarkdownExt)
   const doc: Document = {
     title: "",
     root: {
@@ -73,16 +82,22 @@ async function processContentFromSelection(content: string): Promise<Document> {
 async function subdivideFile(app: App, doc: Document, recursive: boolean): Promise<void> {
   const file = app.vault.getAbstractFileByPath(normalizePath(`${doc.title}.md`))
   if (file && await new OverrideModal(this.app, `${doc.title}.md`).myOpen()) {
-    await app.vault.modify(file as TFile, toMarkdown(doc.root))
+    await app.vault.modify(file as TFile, toMarkdown(doc.root, ToMarkdownExt))
   }
   else {
-    await app.vault.create(normalizePath(`${doc.title}.md`), toMarkdown(doc.root))
+    await app.vault.create(normalizePath(`${doc.title}.md`), toMarkdown(doc.root, ToMarkdownExt))
   }
 }
 
 function processContent(content: string, rootName: string, index: boolean): Document[] {
-  const tree = fromMarkdown(content)
+  const tree = fromMarkdown(content, FromMarkdownExt)
   const documents: Document[] = []
+  // Empty
+  if (tree.children.length === 0) {
+    return documents;
+  }
+
+  const firstHeading = tree.children.findIndex((value) => value.type === "heading" && value.depth === 1)
   if (index) {
     documents.push(
       {
@@ -90,13 +105,15 @@ function processContent(content: string, rootName: string, index: boolean): Docu
         root: {
           type: 'root',
           children: [
+            ...tree.children.slice(0, firstHeading),
             { type: "heading", depth: 1, children: [{ type: "text", value: "TOC" }] },
             { type: "list", ordered: true, start: 1, spread: false, children: [] }
           ]
         }
       })
   }
-  for (const obj of tree.children) {
+
+  for (const obj of tree.children.slice(firstHeading)) {
     if (obj.type === 'heading' && obj.depth === 1) {
       const title = getTitleOfDocument(obj.children)
       const doc: Document = {
@@ -108,7 +125,7 @@ function processContent(content: string, rootName: string, index: boolean): Docu
       }
       documents.push(doc);
       if (index) {
-        (documents.at(0)?.root.children[1] as List).children.push({
+        (documents.at(0)?.root.children.last() as List).children.push({
           type: "listItem",
           spread: false,
           children: [{
@@ -139,10 +156,10 @@ async function subdivide(app: App, rootName: string, documents: Document[], recu
     for (const doc of documents) {
       const file = app.vault.getAbstractFileByPath(normalizePath(`${rootName}/${doc.title}.md`))
       if (file) {
-        await app.vault.modify(file as TFile, toMarkdown(doc.root))
+        await app.vault.modify(file as TFile, toMarkdown(doc.root, ToMarkdownExt))
       }
       else {
-        await app.vault.create(normalizePath(`${rootName}/${doc.title}.md`), toMarkdown(doc.root))
+        await app.vault.create(normalizePath(`${rootName}/${doc.title}.md`), toMarkdown(doc.root, ToMarkdownExt))
       }
     }
   }
