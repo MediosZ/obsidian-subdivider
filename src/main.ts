@@ -7,7 +7,8 @@ import { type Root, type PhrasingContent, List } from 'mdast'
 import { Heading } from 'mdast-util-from-markdown/lib'
 import { frontmatter } from 'micromark-extension-frontmatter'
 import { frontmatterFromMarkdown, frontmatterToMarkdown } from 'mdast-util-frontmatter'
-
+import { gfm } from 'micromark-extension-gfm'
+import { gfmFromMarkdown, gfmToMarkdown } from 'mdast-util-gfm'
 interface SubdividerSettings {
   recursive: boolean
   delete: boolean
@@ -21,11 +22,11 @@ const DEFAULT_SETTINGS: SubdividerSettings = {
 }
 
 const FromMarkdownExt = {
-  extensions: [frontmatter(['yaml', 'toml'])],
-  mdastExtensions: [frontmatterFromMarkdown(['yaml', 'toml'])]
+  extensions: [frontmatter(['yaml', 'toml']), gfm()],
+  mdastExtensions: [frontmatterFromMarkdown(['yaml', 'toml']), gfmFromMarkdown()]
 }
 
-const ToMarkdownExt = { extensions: [frontmatterToMarkdown(['yaml', 'toml'])] }
+const ToMarkdownExt = { extensions: [frontmatterToMarkdown(['yaml', 'toml']), gfmToMarkdown()] }
 
 interface Document {
   title: string
