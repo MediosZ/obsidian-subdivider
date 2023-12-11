@@ -83,8 +83,10 @@ async function processContentFromSelection(content: string): Promise<Document> {
 async function subdivideFile(app: App, rootPath: string | undefined, doc: Document, recursive: boolean): Promise<void> {
   const file = app.vault.getAbstractFileByPath(normalizePath(`${rootPath}/${doc.title}.md`))
   if (file) {
-    if (await new OverrideModal(this.app, `${rootPath}/${doc.title}.md`).myOpen()) {
-      await app.vault.modify(file as TFile, toMarkdown(doc.root, ToMarkdownExt))
+    if (await new OverrideModal(this.app, `${rootPath}/${doc.title}.md`, false).myOpen()) {
+      if (file instanceof TFile) {
+        await app.vault.modify(file, toMarkdown(doc.root, ToMarkdownExt))
+      }
     }
   }
   else {
@@ -155,11 +157,13 @@ function processContent(content: string, rootName: string, index: boolean): Docu
 
 async function subdivide(app: App, rootPath: string, documents: Document[], recursive: boolean): Promise<void> {
   if (app.vault.getAbstractFileByPath(normalizePath(rootPath))) {
-    if (await new OverrideModal(this.app, rootPath).myOpen()) {
+    if (await new OverrideModal(this.app, rootPath, true).myOpen()) {
       for (const doc of documents) {
         const file = app.vault.getAbstractFileByPath(normalizePath(`${rootPath}/${doc.title}.md`))
         if (file) {
-          await app.vault.modify(file as TFile, toMarkdown(doc.root, ToMarkdownExt))
+          if (file instanceof TFile) {
+            await app.vault.modify(file, toMarkdown(doc.root, ToMarkdownExt))
+          }
         }
         else {
           await app.vault.create(normalizePath(`${rootPath}/${doc.title}.md`), toMarkdown(doc.root, ToMarkdownExt))
@@ -288,7 +292,8 @@ export class FilenameModal extends Modal {
 export class OverrideModal extends Modal {
   constructor(
     app: App,
-    private readonly name: string
+    private readonly name: string,
+    private readonly isFolder: boolean
   ) {
     super(app)
   }
@@ -301,12 +306,23 @@ export class OverrideModal extends Modal {
   }
   onOpen() {
     const { contentEl, titleEl } = this
-    titleEl.setText("Override folder")
-    contentEl
-      .createEl("p")
-      .setText(
-        `The ${this.name} already exists. Do you want to override it?`
-      )
+    if (this.isFolder) {
+      titleEl.setText("Override folder")
+      contentEl
+        .createEl("p")
+        .setText(
+          `The folder ${this.name} already exists. Do you want to override it?`
+        )
+    }
+    else {
+      titleEl.setText("Override file")
+      contentEl
+        .createEl("p")
+        .setText(
+          `The file ${this.name} already exists. Do you want to override it?`
+        )
+
+    }
 
     const div = contentEl.createDiv({ cls: "modal-button-container" })
     const discard = div.createEl("button", {
