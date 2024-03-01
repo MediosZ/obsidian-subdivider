@@ -4,7 +4,7 @@ import {
 import { fromMarkdown } from 'mdast-util-from-markdown'
 import { toMarkdown } from 'mdast-util-to-markdown'
 import { type Root, type PhrasingContent, List } from 'mdast'
-import { Heading } from 'mdast-util-from-markdown/lib'
+import { Heading, Strong } from 'mdast-util-from-markdown/lib'
 import { frontmatter } from 'micromark-extension-frontmatter'
 import { frontmatterFromMarkdown, frontmatterToMarkdown } from 'mdast-util-frontmatter'
 import { gfm } from 'micromark-extension-gfm'
@@ -43,7 +43,7 @@ function getTitleOfDocument(nodes: PhrasingContent[]): string {
     }
     else {
       if (node.hasOwnProperty('children')) {
-        for (const child of node.children) {
+        for (const child of (node as Strong).children) {
           getStr(child, acc)
         }
       }
