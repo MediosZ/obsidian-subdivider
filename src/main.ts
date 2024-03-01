@@ -11,12 +11,14 @@ import { gfm } from 'micromark-extension-gfm'
 import { gfmFromMarkdown, gfmToMarkdown } from 'mdast-util-gfm'
 interface SubdividerSettings {
   recursive: boolean
+  recursionDepth: number
   delete: boolean
   index: boolean
 }
 
 const DEFAULT_SETTINGS: SubdividerSettings = {
-  recursive: false,
+  recursive: true,
+  recursionDepth: 1,
   delete: false,
   index: true
 }
@@ -80,7 +82,7 @@ async function processContentFromSelection(content: string): Promise<Document> {
   return doc
 }
 
-async function subdivideFile(app: App, rootPath: string | undefined, doc: Document, recursive: boolean): Promise<void> {
+async function createOrModifyFile(app: App, rootPath: string | undefined, doc: Document, recursive: boolean): Promise<void> {
   const file = app.vault.getAbstractFileByPath(normalizePath(`${rootPath}/${doc.title}.md`))
   if (file) {
     if (await new OverrideModal(this.app, `${rootPath}/${doc.title}.md`, false).myOpen()) {
@@ -103,19 +105,24 @@ function processContent(content: string, rootName: string, index: boolean): Docu
   }
 
   const firstHeading = tree.children.findIndex((value) => value.type === "heading" && value.depth === 1)
+  const hasHeadings = tree.children.filter((value) => value.type === "heading").length > 0
   if (index) {
-    documents.push(
-      {
-        title: rootName,
-        root: {
-          type: 'root',
-          children: [
-            ...tree.children.slice(0, firstHeading),
-            { type: "heading", depth: 1, children: [{ type: "text", value: "TOC" }] },
-            { type: "list", ordered: true, start: 1, spread: false, children: [] }
-          ]
-        }
-      })
+    const node: Document = {
+      title: rootName,
+      root: {
+        type: 'root',
+        children: [
+          ...tree.children.slice(0, firstHeading),
+        ]
+      }
+    };
+    if (hasHeadings) {
+      node.root.children.push(
+        { type: "heading", depth: 1, children: [{ type: "text", value: "TOC" }] },
+        { type: "list", ordered: true, start: 1, spread: false, children: [] }
+      )
+    }
+    documents.push(node)
   }
 
   for (const obj of tree.children.slice(firstHeading)) {
@@ -129,7 +136,7 @@ function processContent(content: string, rootName: string, index: boolean): Docu
         }
       }
       documents.push(doc)
-      if (index) {
+      if (index && hasHeadings) {
         (documents.at(0)?.root.children.last() as List).children.push({
           type: "listItem",
           spread: false,
@@ -179,6 +186,28 @@ async function subdivide(app: App, rootPath: string, documents: Document[], recu
   }
 }
 
+async function subdivideFile(plugin: SubdividerPlugin, file: TFile, depth: number, deleteOrigFile: boolean) {
+  const fileContent = await plugin.app.vault.cachedRead(file)
+  const documents = processContent(fileContent, file.basename, plugin.settings.index)
+  const rootPath = `${file.parent?.path}/${file.basename}`
+  await subdivide(plugin.app, rootPath, documents, plugin.settings.recursive)
+  if (deleteOrigFile) {
+    await plugin.app.vault.delete(file)
+  }
+  if (plugin.settings.recursive && depth < plugin.settings.recursionDepth) {
+    const folder = plugin.app.vault.getFolderByPath(normalizePath(rootPath));
+    let children = [];
+    for (let f of folder?.children ?? []) {
+      if (f instanceof TFile && f.basename !== file.basename) {
+        children.push(f);
+      }
+    }
+    for (let f of children) {
+      await subdivideFile(plugin, f, depth + 1, true)
+    }
+  }
+}
+
 export default class SubdividerPlugin extends Plugin {
   settings: SubdividerSettings
 
@@ -198,9 +227,15 @@ export default class SubdividerPlugin extends Plugin {
               if (selectedText) {
                 const doc = await processContentFromSelection(selectedText)
                 const rootPath = this.app.workspace.activeEditor?.file?.parent?.path
-                await subdivideFile(this.app, rootPath, doc, this.settings.recursive)
+                await createOrModifyFile(this.app, rootPath, doc, this.settings.recursive)
                 if (this.settings.delete) {
                   this.app.workspace.activeEditor?.editor?.replaceSelection("")
+                }
+                if (this.settings.recursive && this.settings.recursionDepth > 1) {
+                  const targetFile = this.app.vault.getAbstractFileByPath(normalizePath(`${rootPath}/${doc.title}.md`))
+                  if (targetFile && targetFile instanceof TFile) {
+                    await subdivideFile(this, targetFile, 2, true)
+                  }
                 }
               }
             })
@@ -213,12 +248,7 @@ export default class SubdividerPlugin extends Plugin {
         const addIconMenuItem = (item: MenuItem): void => {
           item.setTitle('Subdivide the file')
           item.onClick(async () => {
-            const fileContent = await this.app.vault.cachedRead(file)
-            const documents = processContent(fileContent, file.basename, this.settings.index)
-            await subdivide(this.app, `${file.parent?.path}/${file.basename}`, documents, this.settings.recursive)
-            if (this.settings.delete) {
-              await this.app.vault.delete(file)
-            }
+            await subdivideFile(this, file, 1, this.settings.delete)
           })
         }
         menu.addItem(addIconMenuItem)
@@ -376,6 +406,17 @@ class SubdividerSettingTab extends PluginSettingTab {
         .setValue(this.plugin.settings.recursive)
         .onChange(async value => {
           this.plugin.settings.recursive = value
+          await this.plugin.saveSettings()
+        })
+      )
+
+    new Setting(containerEl)
+      .setName("Recursion Depth")
+      .setDesc("XXX")
+      .addText(text => text
+        .setValue(this.plugin.settings.recursionDepth.toString())
+        .onChange(async value => {
+          this.plugin.settings.recursionDepth = Number(value)
           await this.plugin.saveSettings()
         })
       )
