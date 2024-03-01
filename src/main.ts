@@ -36,18 +36,25 @@ interface Document {
 }
 
 function getTitleOfDocument(nodes: PhrasingContent[]): string {
-  return toMarkdown({
-    type: 'root',
-    children: [
-      {
-        type: 'heading',
-        depth: 1,
-        children: nodes
+  let subStrings: string[] = []
+  function getStr(node: PhrasingContent, acc: string[]) {
+    if (node.type === 'text') {
+      acc.push(node.value)
+    }
+    else {
+      if (node.hasOwnProperty('children')) {
+        for (const child of node.children) {
+          getStr(child, acc)
+        }
       }
-    ]
-  }, ToMarkdownExt)
-    .slice(2)
-    .trim()
+      return
+    }
+  }
+  for (const node of nodes) {
+    getStr(node, subStrings)
+  }
+  return subStrings.join('')
+
 }
 
 async function processContentFromSelection(content: string): Promise<Document> {
