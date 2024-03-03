@@ -420,7 +420,7 @@ class SubdividerSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Recursion Depth")
-      .setDesc("XXX")
+      .setDesc("The maximum depth of recursion.")
       .addText(text => text
         .setValue(this.plugin.settings.recursionDepth.toString())
         .onChange(async value => {
