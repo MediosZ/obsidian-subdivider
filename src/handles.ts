@@ -34,6 +34,12 @@ function processContent(content: string, rootName: string, index: boolean): Docu
         return documents
     }
 
+    // No Header1
+    const numberOfHeadings = tree.children.filter((value) => value.type === "heading" && value.depth === 1).length
+    if (numberOfHeadings === 0) {
+        return documents
+    }
+
     const firstHeading = tree.children.findIndex((value) => value.type === "heading" && value.depth === 1)
     const hasHeadings = tree.children.filter((value) => value.type === "heading").length > 0
     if (index || firstHeading !== 0) {
@@ -133,6 +139,9 @@ async function subdivide(app: App, rootPath: string, documents: Document[], auto
 async function handle_file(plugin: SubdividerPlugin, file: TFile, depth: number, deleteOrigFile: boolean, autoOverride: boolean) {
     const fileContent = await plugin.app.vault.cachedRead(file)
     const documents = processContent(fileContent, file.basename, plugin.settings.index)
+    if (documents.length === 0) {
+        return
+    }
     const rootPath = `${file.parent?.path}/${file.basename}`
     await subdivide(plugin.app, rootPath, documents, autoOverride)
     if (deleteOrigFile) {
@@ -140,14 +149,10 @@ async function handle_file(plugin: SubdividerPlugin, file: TFile, depth: number,
     }
     if (plugin.settings.recursive && depth < plugin.settings.recursionDepth) {
         const folder = plugin.app.vault.getFolderByPath(normalizePath(rootPath));
-        const children = [];
         for (const f of folder?.children ?? []) {
             if (f instanceof TFile && f.basename !== file.basename) {
-                children.push(f);
+                await handle_file(plugin, f, depth + 1, true, true)
             }
-        }
-        for (const f of children) {
-            await handle_file(plugin, f, depth + 1, true, true)
         }
     }
 }
