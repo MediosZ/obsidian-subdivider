@@ -18,6 +18,12 @@ jobs:
         uses: actions/setup-node@v1
         with:
           node-version: "21.x"
+      - name: Eslint
+        id: eslint
+        run: yarn eslint
+      - name: Test
+        id: test
+        run: yarn test
       - name: Build
         id: build
         run: |
