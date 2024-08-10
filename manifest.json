@@ -1,7 +1,7 @@
 {
 	"id": "subdivider",
 	"name": "Subdivider",
-	"version": "0.1.3",
+	"version": "0.1.4",
 	"minAppVersion": "0.15.0",
 	"description": "Converts your notes into nested folders, automatically creating separate files for each subheading.",
 	"author": "Tricster",
