@@ -1,6 +1,6 @@
 
 import {
-    type App, TFile, TFolder, normalizePath
+    type App, TFile, normalizePath
 } from 'obsidian'
 import { type Root, type PhrasingContent, List } from 'mdast'
 import SubdividerPlugin from './main'
