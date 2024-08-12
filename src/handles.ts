@@ -1,6 +1,6 @@
 
 import {
-    type App, TFile, normalizePath
+    type App, TFile, TFolder, normalizePath
 } from 'obsidian'
 import { type Root, type PhrasingContent, List } from 'mdast'
 import SubdividerPlugin from './main'
@@ -175,10 +175,14 @@ async function handle_file(plugin: SubdividerPlugin, file: TFile, depth: number,
     }
     if (plugin.settings.recursive && depth < plugin.settings.recursionDepth) {
         const folder = plugin.app.vault.getFolderByPath(normalizePath(rootPath));
+        const children = [];
         for (const f of folder?.children ?? []) {
             if (f instanceof TFile && f.basename !== file.basename) {
-                await handle_file(plugin, f, depth + 1, true, true)
+                children.push(f);
             }
+        }
+        for (const f of children) {
+            await handle_file(plugin, f, depth + 1, true, true)
         }
     }
 }
