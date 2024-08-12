@@ -7,6 +7,30 @@ import SubdividerPlugin from './main'
 import { fromMd, toMd } from "./parser"
 import { FilenameModal, OverrideModal } from "./modal"
 
+function hostname() {
+    const platform = window.navigator.platform;
+    const macosPlatforms = ['Macintosh', 'MacIntel', 'MacPPC', 'Mac68K'];
+    const windowsPlatforms = ['Win32', 'Win64', 'Windows', 'WinCE'];
+    let os = null;
+    if (macosPlatforms.indexOf(platform) !== -1) {
+        os = 'macOS';
+    } else if (windowsPlatforms.indexOf(platform) !== -1) {
+        os = 'Windows';
+    } else if (!os && /Linux/.test(platform)) {
+        os = 'Linux';
+    }
+    return os;
+}
+
+
+export function handleTitle(title: string): string {
+    // remove / and \\ for every platform
+    const cleanTitle = title.replace(/[/\\]/g, "_")
+    if (hostname() === 'Windows' && (title.endsWith(".") || title.endsWith(" "))) {
+        return cleanTitle + "_"
+    }
+    return cleanTitle
+}
 
 interface Document {
     title: string
@@ -116,14 +140,15 @@ async function subdivide(app: App, rootPath: string, documents: Document[], auto
     if (app.vault.getAbstractFileByPath(normalizePath(rootPath))) {
         if (autoOverride || await new OverrideModal(app, rootPath, true).myOpen()) {
             for (const doc of documents) {
-                const file = app.vault.getAbstractFileByPath(normalizePath(`${rootPath}/${doc.title}.md`))
+                const title = handleTitle(doc.title)
+                const file = app.vault.getAbstractFileByPath(normalizePath(`${rootPath}/${title}.md`))
                 if (file) {
                     if (file instanceof TFile) {
                         await app.vault.modify(file, toMd(doc.root))
                     }
                 }
                 else {
-                    await app.vault.create(normalizePath(`${rootPath}/${doc.title}.md`), toMd(doc.root))
+                    await app.vault.create(normalizePath(`${rootPath}/${title}.md`), toMd(doc.root))
                 }
             }
         }
@@ -131,7 +156,8 @@ async function subdivide(app: App, rootPath: string, documents: Document[], auto
     else {
         await app.vault.createFolder(normalizePath(rootPath))
         for (const doc of documents) {
-            await app.vault.create(normalizePath(`${rootPath}/${doc.title}.md`), toMd(doc.root))
+            const title = handleTitle(doc.title)
+            await app.vault.create(normalizePath(`${rootPath}/${title}.md`), toMd(doc.root))
         }
     }
 }
@@ -159,7 +185,7 @@ async function handle_file(plugin: SubdividerPlugin, file: TFile, depth: number,
 
 
 async function handle_selection(plugin: SubdividerPlugin, selectedText: string) {
-    const title = await new FilenameModal(plugin.app).myOpen() as string
+    const title = handleTitle(await new FilenameModal(plugin.app).myOpen() as string || "Untitled")
     const rootPath = plugin.app.workspace.activeEditor?.file?.parent?.path
     await createOrModifyFile(plugin.app, rootPath, title, selectedText, false)
     if (plugin.settings.delete) {
