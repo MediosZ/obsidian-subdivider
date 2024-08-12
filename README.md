@@ -15,3 +15,14 @@ There are two operations right now, you can turn a file into a folder or turn pa
 
 1. Right click a file and select "Subdivide the file", then a folder will be created.
 2. Select some text in a file, right click and select "Subdivide the selection", then the file will be created.
+
+# Notes
+
+## Special Characters in File Name
+
+The plugin will replace some special characters in the file name with `_` to avoid some unexpected issues. The special characters are:
+
+- "/"
+- "\\"
+- " "(space)(Windows only)
+- "."(period)(Windows only)
