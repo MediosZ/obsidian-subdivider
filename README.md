@@ -9,6 +9,8 @@ Personally, I don't like long notes, so when a note grows into a giant note, I w
 
 This plugin is still in its early stage and if you find anything unexpected, feel free to open an issue.
 
+
+
 ## Usage
 
 There are two operations right now, you can turn a file into a folder or turn part of a file into another file.
@@ -26,3 +28,51 @@ The plugin will replace some special characters in the file name with `_` to avo
 - "\\"
 - " "(space)(Windows only)
 - "."(period)(Windows only)
+
+## File Structure
+
+The plugin expects a well-structured file, which means the file should have a few Header 1s. Only these Header 1s will be converted into separate files during a single pass. 
+
+[Linter](https://github.com/platers/obsidian-linter) is a great plugin to help you maintain a well-structured file.
+
+### Example
+
+Given the following file:
+
+```markdown
+Title
+# Header 1
+# Header 2
+## Header 3
+```
+
+The plugin will convert it to:
+
+```
+- Title
+  - Header 1.md
+  - Header 2.md
+```
+
+If `recursive` is enabled, the plugin will also convert the Header 3 in `Header 2.md` to a separate file.
+
+```markdown
+- Title
+  - Header 1.md
+  - Header 2
+    - Header 3.md
+```
+
+### Missing Headers
+
+Note that Headers should be in order. If a Header 2 is missing, the plugin will not convert the Header 3 under it.
+
+```markdown
+Title
+# Header 1
+### Header 3
+```
+
+Even if `recursive` is enabled, the plugin will not convert the Header 3.
+
+
