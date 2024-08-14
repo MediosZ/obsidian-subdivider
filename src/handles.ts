@@ -136,7 +136,7 @@ async function createOrModifyFile(app: App, rootPath: string | undefined, title:
     }
 }
 
-async function subdivide(app: App, rootPath: string, documents: Document[], autoOverride: boolean): Promise<void> {
+async function subdivide(app: App, rootPath: string, documents: Document[], autoOverride: boolean, compact: boolean): Promise<void> {
     if (app.vault.getAbstractFileByPath(normalizePath(rootPath))) {
         if (autoOverride || await new OverrideModal(app, rootPath, true).myOpen()) {
             for (const doc of documents) {
@@ -144,11 +144,11 @@ async function subdivide(app: App, rootPath: string, documents: Document[], auto
                 const file = app.vault.getAbstractFileByPath(normalizePath(`${rootPath}/${title}.md`))
                 if (file) {
                     if (file instanceof TFile) {
-                        await app.vault.modify(file, toMd(doc.root))
+                        await app.vault.modify(file, toMd(doc.root, compact))
                     }
                 }
                 else {
-                    await app.vault.create(normalizePath(`${rootPath}/${title}.md`), toMd(doc.root))
+                    await app.vault.create(normalizePath(`${rootPath}/${title}.md`), toMd(doc.root, compact))
                 }
             }
         }
@@ -157,7 +157,7 @@ async function subdivide(app: App, rootPath: string, documents: Document[], auto
         await app.vault.createFolder(normalizePath(rootPath))
         for (const doc of documents) {
             const title = handleTitle(doc.title)
-            await app.vault.create(normalizePath(`${rootPath}/${title}.md`), toMd(doc.root))
+            await app.vault.create(normalizePath(`${rootPath}/${title}.md`), toMd(doc.root, compact))
         }
     }
 }
@@ -169,7 +169,7 @@ async function handle_file(plugin: SubdividerPlugin, file: TFile, depth: number,
         return
     }
     const rootPath = `${file.parent?.path}/${file.basename}`
-    await subdivide(plugin.app, rootPath, documents, autoOverride)
+    await subdivide(plugin.app, rootPath, documents, autoOverride, plugin.settings.compact)
     if (deleteOrigFile) {
         await plugin.app.vault.delete(file)
     }

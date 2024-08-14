@@ -1,5 +1,5 @@
-import { fromMarkdown } from 'mdast-util-from-markdown'
-import { toMarkdown } from 'mdast-util-to-markdown'
+import { fromMarkdown, Options as FromMdOptions } from 'mdast-util-from-markdown'
+import { toMarkdown, Options as ToMdOptions } from 'mdast-util-to-markdown'
 
 import { frontmatter } from 'micromark-extension-frontmatter'
 import { frontmatterFromMarkdown, frontmatterToMarkdown } from 'mdast-util-frontmatter'
@@ -7,7 +7,7 @@ import { gfm } from 'micromark-extension-gfm'
 import { gfmFromMarkdown, gfmToMarkdown } from 'mdast-util-gfm'
 
 
-const FromMarkdownExt = {
+const FromMarkdownOptions: FromMdOptions = {
     extensions: [frontmatter(['yaml', 'toml']), gfm()],
     mdastExtensions: [frontmatterFromMarkdown(['yaml', 'toml']), gfmFromMarkdown()]
 }
@@ -19,8 +19,12 @@ function textHandler(node: any, _: any, context: any) {
     return node.value
 }
 
+/* eslint-disable  @typescript-eslint/no-explicit-any */
+function customJoin(left: any, right: any, parent: any, state: any) {
+    return 0
+}
 
-const ToMarkdownExt = {
+const ToMarkdownOptions: ToMdOptions = {
     extensions: [frontmatterToMarkdown(['yaml', 'toml']), gfmToMarkdown()],
     handlers: {
         text: textHandler
@@ -28,11 +32,17 @@ const ToMarkdownExt = {
 }
 
 function fromMd(input: string) {
-    return fromMarkdown(input, FromMarkdownExt)
+    return fromMarkdown(input, FromMarkdownOptions)
 }
 
-function toMd(input: any) {
-    return toMarkdown(input, ToMarkdownExt)
+function toMd(input: any, compact: boolean = false) {
+    if (compact) {
+        ToMarkdownOptions.join = [customJoin]
+    }
+    else {
+        delete ToMarkdownOptions.join
+    }
+    return toMarkdown(input, ToMarkdownOptions)
 }
 
-export { FromMarkdownExt, ToMarkdownExt, fromMd, toMd };
+export { FromMarkdownOptions, ToMarkdownOptions, fromMd, toMd };

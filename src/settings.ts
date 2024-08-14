@@ -9,13 +9,15 @@ interface SubdividerSettings {
     recursionDepth: number
     delete: boolean
     index: boolean
+    compact: boolean
 }
 
 const DEFAULT_SETTINGS: SubdividerSettings = {
     recursive: true,
     recursionDepth: 1,
     delete: false,
-    index: true
+    index: true,
+    compact: false
 }
 
 class SubdividerSettingTab extends PluginSettingTab {
@@ -70,6 +72,17 @@ class SubdividerSettingTab extends PluginSettingTab {
                 .setValue(this.plugin.settings.index)
                 .onChange(async value => {
                     this.plugin.settings.index = value
+                    await this.plugin.saveSettings()
+                })
+            )
+
+        new Setting(containerEl)
+            .setName('Maintain original line breaks')
+            .setDesc('If enabled, no new line breaks will be added between blocks.')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.compact)
+                .onChange(async value => {
+                    this.plugin.settings.compact = value
                     await this.plugin.saveSettings()
                 })
             )
