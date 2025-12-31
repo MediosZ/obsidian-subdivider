@@ -111,3 +111,87 @@ export class OverrideModal extends Modal {
         contentEl.empty()
     }
 }
+
+export class HeadersModal extends Modal {
+    private proposedHeaders: string[]
+    private originalHeaders: string[]
+    private listEl: HTMLElement
+
+    constructor(
+        app: App,
+        headers: string[]
+    ) {
+        super(app)
+        this.originalHeaders = [...headers]
+        this.proposedHeaders = headers.map(h =>
+            h.replace(/[^\p{L}\p{N}\s]/gu, ' ')
+                .replace(/\s+/g, ' ')
+                .trim()
+        )
+    }
+
+    resolve: ((value: string[] | null) => void) | null = null
+
+    myOpen(): Promise<string[] | null> {
+        this.open()
+        return new Promise((resolve) => {
+            this.resolve = resolve
+        })
+    }
+
+    private renderHeaders() {
+        this.listEl.empty()
+        this.originalHeaders.forEach((header, index) => {
+            const proposed = this.proposedHeaders[index]
+            const item = this.listEl.createEl("li")
+            item.style.marginBottom = "8px"
+
+            const originalDiv = item.createDiv({ cls: "header-original" })
+            originalDiv.setText(header)
+            originalDiv.style.fontSize = "0.8em"
+            originalDiv.style.color = "var(--text-muted)"
+
+            const proposedDiv = item.createDiv({ cls: "header-proposed" })
+            proposedDiv.setText(`Proposed: ${proposed}`)
+            proposedDiv.style.fontWeight = "bold"
+
+            if (header.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').trim() !== proposed.toLowerCase()) {
+                proposedDiv.style.color = "var(--text-accent)"
+            }
+        })
+    }
+
+    onOpen() {
+        const { contentEl, titleEl } = this
+        titleEl.setText("Verify Proposed Names")
+
+        contentEl.createEl("p").setText("Review the proposed filenames for the new sections:")
+
+        this.listEl = contentEl.createEl("ul")
+        this.renderHeaders()
+
+        const div = contentEl.createDiv({ cls: "modal-button-container" })
+
+        const confirm = div.createEl("button", {
+            cls: "mod-cta",
+            text: "Confirm & Subdivide",
+        })
+        confirm.addEventListener("click", () => {
+            if (this.resolve) this.resolve(this.proposedHeaders)
+            this.close()
+        })
+
+        const close = div.createEl("button", {
+            text: "Cancel",
+        })
+        close.addEventListener("click", () => {
+            if (this.resolve) this.resolve(null)
+            this.close()
+        })
+    }
+
+    onClose() {
+        const { contentEl } = this
+        contentEl.empty()
+    }
+}
