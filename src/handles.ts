@@ -171,7 +171,7 @@ async function handle_file(plugin: SubdividerPlugin, file: TFile, depth: number,
 
     if (showModal) {
         const headers = documents.map(doc => doc.title)
-        const updatedHeaders = await new HeadersModal(plugin.app, headers).myOpen()
+        const updatedHeaders = await new HeadersModal(plugin.app, headers, plugin.settings.autoIncrement).myOpen()
         if (updatedHeaders) {
             updatedHeaders.forEach((header, index) => {
                 documents[index].title = header

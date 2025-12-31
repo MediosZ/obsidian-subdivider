@@ -10,6 +10,7 @@ interface SubdividerSettings {
     delete: boolean
     index: boolean
     compact: boolean
+    autoIncrement: boolean
 }
 
 const DEFAULT_SETTINGS: SubdividerSettings = {
@@ -17,7 +18,8 @@ const DEFAULT_SETTINGS: SubdividerSettings = {
     recursionDepth: 1,
     delete: false,
     index: true,
-    compact: false
+    compact: false,
+    autoIncrement: false
 }
 
 class SubdividerSettingTab extends PluginSettingTab {
@@ -83,6 +85,17 @@ class SubdividerSettingTab extends PluginSettingTab {
                 .setValue(this.plugin.settings.compact)
                 .onChange(async value => {
                     this.plugin.settings.compact = value
+                    await this.plugin.saveSettings()
+                })
+            )
+
+        new Setting(containerEl)
+            .setName('Auto Increment')
+            .setDesc('Default state for Auto Increment in the subdivision modal.')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.autoIncrement)
+                .onChange(async value => {
+                    this.plugin.settings.autoIncrement = value
                     await this.plugin.saveSettings()
                 })
             )
