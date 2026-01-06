@@ -5,7 +5,7 @@ import {
 import { type Root, type PhrasingContent, List } from 'mdast'
 import SubdividerPlugin from './main'
 import { fromMd, toMd } from "./parser"
-import { FilenameModal, OverrideModal } from "./modal"
+import { FilenameModal, OverrideModal, HeadersModal } from "./modal"
 
 function hostname() {
     const platform = window.navigator.platform;
@@ -162,11 +162,23 @@ async function subdivide(app: App, rootPath: string, documents: Document[], auto
     }
 }
 
-async function handle_file(plugin: SubdividerPlugin, file: TFile, depth: number, deleteOrigFile: boolean, autoOverride: boolean) {
+async function handle_file(plugin: SubdividerPlugin, file: TFile, depth: number, deleteOrigFile: boolean, autoOverride: boolean, showModal: boolean = false) {
     const fileContent = await plugin.app.vault.cachedRead(file)
     const documents = processContent(fileContent, file.basename, plugin.settings.index)
     if (documents.length === 0) {
         return
+    }
+
+    if (showModal) {
+        const headers = documents.map(doc => doc.title)
+        const updatedHeaders = await new HeadersModal(plugin.app, headers, plugin.settings.autoIncrement).myOpen()
+        if (updatedHeaders) {
+            updatedHeaders.forEach((header, index) => {
+                documents[index].title = header
+            })
+        } else {
+            return
+        }
     }
     const rootPath = `${file.parent?.path}/${file.basename}`
     await subdivide(plugin.app, rootPath, documents, autoOverride, plugin.settings.compact)
@@ -182,7 +194,7 @@ async function handle_file(plugin: SubdividerPlugin, file: TFile, depth: number,
             }
         }
         for (const f of children) {
-            await handle_file(plugin, f, depth + 1, true, true)
+            await handle_file(plugin, f, depth + 1, true, true, false)
         }
     }
 }
@@ -195,7 +207,7 @@ async function handle_selection(plugin: SubdividerPlugin, selectedText: string) 
     if (plugin.settings.delete) {
         plugin.app.workspace.activeEditor?.editor?.replaceSelection("")
     }
-    handle_file(plugin, plugin.app.vault.getAbstractFileByPath(normalizePath(`${rootPath}/${title}.md`)) as TFile, 1, true, false)
+    handle_file(plugin, plugin.app.vault.getAbstractFileByPath(normalizePath(`${rootPath}/${title}.md`)) as TFile, 1, true, false, false)
 }
 
 export { handle_selection, handle_file }

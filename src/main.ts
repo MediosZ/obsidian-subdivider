@@ -31,7 +31,7 @@ export default class SubdividerPlugin extends Plugin {
         const addIconMenuItem = (item: MenuItem): void => {
           item.setTitle('Subdivide the file')
           item.onClick(async () => {
-            await handle_file(this, file, 1, this.settings.delete, false)
+            await handle_file(this, file, 1, this.settings.delete, false, true)
           })
         }
         menu.addItem(addIconMenuItem)
